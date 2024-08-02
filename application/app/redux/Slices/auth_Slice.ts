@@ -1,3 +1,5 @@
+
+import AuthApi from "@/app/api/api/serverApi";
 import { authData } from "@/app/types";
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
@@ -8,21 +10,25 @@ const initialState: authData = {
   message: "",
   loading: false,
   error: null,
+  tocken : "",
 };
 
 export const authSlice = createAsyncThunk(
   "auth/login",
-  async (data: { auth_userName: string; auth_password: string }, thunkApi) => {
+  async (data: { userName: string; password: string }, thunkApi) => {
+
     const request = {
-      auth_userName: data.auth_userName,
-      auth_password: data.auth_password,
+      userName: data.userName,
+      password: data.password,
     };
+    
     console.log("data", request);
 
     try {
-      const axiosData = axios.post("http://localhost:7000/authCheck", request);
-
+      const axiosData = await AuthApi.login(request)
       console.log("axiosData", axiosData);
+
+
       return thunkApi.fulfillWithValue({ ...axiosData, ...data });
 
     } catch (error) {
@@ -54,7 +60,7 @@ const loginSlice = createSlice({
       .addCase(authSlice.fulfilled, (state, action) => {
         state.loading = false;
         state.status = action.payload?.status ?? null;
-        // state.message = (action.payload as ServerResponse)?.message ?? "";
+        state.message = action.payload?.message ?? "";
         if (action.payload?.status === 0) {
           state.auth = true;
         } else {

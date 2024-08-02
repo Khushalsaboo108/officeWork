@@ -1,107 +1,149 @@
 const express = require("express");
 const AuthLoginSchema = require("./authSchema");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+const jwtKey = "khatabook12";
 
-exports.addAuthData = async (request, response) => {
+exports.addAuthData = async (request, responce) => {
   console.log(request.body);
+  const hashedPassword = await bcrypt.hash(request.body.auth_password, 5);
+
+  // All data
 
   let data = {
     auth_name: request.body.auth_name,
-    auth_email: request.body.auth_email,
-    auth_userName: request.body.auth_userName,
-    auth_password: request.body.auth_password,
+    auth_userName: request.body.auth_userName.toLowerCase(),
+    auth_email: request.body.auth_email.toLowerCase(),
+    auth_password: hashedPassword,
     auth_Id: request.body.auth_Id,
   };
 
-  const id = request.body.id;
+  // Check userName, email, id exist or not
 
-  let userData;
-
-  try {
-    if (id === undefined) {
-      let dataInsert = new AuthLoginSchema(data);
-
-      const insertData = await dataInsert.save();
-      userData = {
-        status: 0,
-        message: "Auth Add Successfully...",
-        data: insertData,
-      };
-    } else {
-      const updatedData = await AuthLoginSchema.findOneAndUpdate(
-        { _id: id },
-        { $set: data },
-        { new: true }
-      );
-      userData = {
-        status: 2,
-        message: "Auth Added Already...",
-        data: updatedData,
-      };
-    }
-  } catch (error) {
-    userData = {
-      status: 2,
-      message: "Auth operation not successful...",
-      error: `Error: ${error}`,
-    };
-  }
-
-  response.send(userData);
-};
-
-exports.chackAuth = async (request, response) => {
-  const { auth_userName, auth_email, auth_Id, auth_password } = request.body;
-
-  console.log(request.body);
-
-  let userData;
+  let checkData = await AuthLoginSchema.findOne({
+    $or: [
+      { auth_userName: data.auth_userName },
+      { auth_email: data.auth_email },
+      { auth_Id: data.auth_Id },
+    ],
+  });
 
   try {
-    const fondAdmin = await AuthLoginSchema.findOne({
-      $or: [
-        { auth_userName: auth_userName },
-        { auth_email: auth_email },
-        { auth_Id: auth_Id },
-      ],
-    });
-
-    if (!auth_userName && !auth_email && !auth_Id) {
-      userData = {
+    if (
+      !request.body.auth_userName ||
+      !request.body.auth_email ||
+      !request.body.auth_Id ||
+      !request.body.auth_password
+    ) {
+      responce.status(401).send({
         status: 1,
-        message: "Please enter User detail",
-      };
-    } else if (!fondAdmin) {
-      userData = {
-        status: 2,
-        message: "User not found",
+        message: "Please provide your all data",
         data: {},
-      };
+      });
+      return;
     } else {
-      if (auth_password && fondAdmin.auth_password === auth_password) {
-        userData = {
-          status: 0,
-          message: "Login Successfully",
-          data: fondAdmin,
-        };
-      } else {
-        userData = {
+      if (checkData) {
+        responce.status(400).send({
           status: 1,
-          message: "Login Unsuccessfully",
+          message: "Auth already exist",
           data: {},
-        };
+        });
+      } else {
+        const newAuthData = new AuthLoginSchema(data);
+        const insertData = await newAuthData.save();
+        responce.status(200).send({
+          status: 0,
+          message: "Auth added successfully...",
+          data: {
+            userName: insertData.auth_userName,
+            name: insertData.auth_name,
+            id: insertData.auth_Id,
+            email: insertData.auth_email,
+          },
+        });
       }
     }
   } catch (error) {
-    userData = {
-      status: 2,
-      message: "Error",
+    responce.status(500).send({
+      status: 1,
+      message: "Server Error",
       error: `Error: ${error}`,
-    };
+    });
+    return;
   }
-  response.send(userData);
 };
 
-exports.getUpdate = (request, response) => {
-  let userData = "Welcome To My World";
-  response.send(userData);
+exports.checkAuth = async (request, response) => {
+  console.log(request.body);
+  const { userName, password } = request.body;
+
+  // Requirement are full fill or not fulfilled
+  if (!userName || !password) {
+    return response.status(401).send({
+      status: 1,
+      message: "Please provide all required data",
+      data: {},
+    });
+  } else {
+    try {
+      // get user from database
+      const user = await AuthLoginSchema.findOne({
+        $or: [
+          { auth_userName: userName },
+          { auth_email: userName },
+          { auth_Id: userName },
+        ],
+      });
+      // check user exist or not
+      if (user) {
+        // check password is currect or not
+        if (user && (await bcrypt.compare(password, user.auth_password))) {
+          jwt.sign(
+            { userId: user.auth_userName },
+            jwtKey,
+            { expiresIn: "10s" },
+            (err, token) => {
+              if (err) {
+                return response.status(500).send({
+                  status: 1,
+                  message: "Something went wrong",
+                  data: {},
+                });
+              }
+
+              return response.status(200).send({
+                status: 0,
+                message: "Login successful",
+                data: {
+                  token,
+                  userName: user.auth_userName,
+                  name: user.auth_name,
+                  id: user.auth_Id,
+                  email: user.auth_email,
+                },
+              });
+            }
+          );
+        } else {
+          return response.status(401).send({
+            status: 1,
+            message: "Invalid  password",
+            data: {},
+          });
+        }
+      } else {
+        return response.status(401).send({
+          status: 1,
+          message: "Invalid username",
+          data: {},
+        });
+      }
+    } catch (error) {
+      return response.status(500).send({
+        status: 1,
+        message: "Internal server error",
+        data: {},
+      });
+    }
+  }
 };
