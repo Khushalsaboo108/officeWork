@@ -1,4 +1,16 @@
 const mongoose = require("mongoose");
+
+const dataTextSchema = new mongoose.Schema({
+  text: {
+    type: String,
+    required: true
+  },
+  value: {
+    type: String,
+    required: true
+  }
+});
+
 const candidate = new mongoose.Schema({
   candidate_name: {
     type: String,
@@ -30,6 +42,10 @@ const candidate = new mongoose.Schema({
     type: Number,
     require: true,
   },
+  candidate_dataText: {
+    type: [dataTextSchema],
+    require: true
+  }
 });
 
 let candidateData = mongoose.model("Candidate Detail", candidate);

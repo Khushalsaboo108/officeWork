@@ -98,8 +98,9 @@ exports.checkAuth = async (request, response) => {
       if (user) {
         // check password is currect or not
         if (user && (await bcrypt.compare(password, user.auth_password))) {
-          jwt.sign(
-            { userId: user.auth_userName },
+          
+            { userId: user.auth_userName }
+            
             jwtKey,
             { expiresIn: "10s" },
             (err, token) => {
@@ -123,7 +124,6 @@ exports.checkAuth = async (request, response) => {
                 },
               });
             }
-          );
         } else {
           return response.status(401).send({
             status: 1,
